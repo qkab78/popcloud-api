@@ -10,7 +10,7 @@ let schema = new Schema({
     user: { type: mongoose.Types.ObjectId, ref: "users" },
     name: { type: String, required: true },
     description: { type: String, required: true },
-    links: [Schema.Types.ObjectId],
+    links: [{ type: Schema.Types.ObjectId, ref: "links" }],
     createdOn: { type: Date, default: Date.now },
 })
 schema.methods.joiValidate = function (request, schemaType) {

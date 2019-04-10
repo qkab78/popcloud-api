@@ -19,6 +19,7 @@
   "homepage": "https://github.com/qkab78/popcloud-api#readme",
   "dependencies": {
     "@koa/cors": "^3.0.0",
+    "aws-sdk": "^2.435.0",
     "bcrypt": "^3.0.5",
     "dotenv": "^7.0.0",
     "joi": "^14.3.1",

@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose')
 const config = require('../../config');
 const User = require('../models/users-model');
+const Csp = require('../models/csps-model');
+const Link = require('../models/links-model');
 const userValidator = require('../../validation/users-validator');
 
 exports.get = async (ctx) => {
@@ -52,7 +54,13 @@ exports.delete = async (ctx) => {
     const user = await User.findOne({ _id: id });
     if (!user) return ctx.badRequest({ error: "UserNotFound" })
     let validation = user.joiValidate({ id }, userValidator.delete);
-    if (validation.error) return ctx.badRequest({ error: validation.error })
+    if (validation.error) return ctx.badRequest({ error: validation.error });
+    let csp = await Csp.findOne({ user: id });
+    if (!csp) return ctx.badRequest({ error: "CspNotFound" })
+    let links = await Link.find({ csp: csp._id });
+    if (!links) return ctx.badRequest({ error: "LinksNotFound" })
+    links.map(async link => await link.remove());
+    await csp.remove();
     await user.remove();
     return ctx.ok({ message: "UserDeleted" })
 }

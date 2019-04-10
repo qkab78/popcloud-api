@@ -35,7 +35,7 @@ exports.create = async (ctx) => {
     if (validation.error) return ctx.badRequest({ error: validation.error });
     // console.log('links', csp);
     if (await link.save()) {
-        csp.links = csp.links.push(link._id);
+        csp.links.push(link._id);
         await csp.save();
         return ctx.ok(link);
     } else {
@@ -52,9 +52,12 @@ exports.delete = async (ctx) => {
     if (validation.error) return ctx.badRequest({ error: validation.error })
     if (ctx.auth.access === 'csp') {
         let csp = await Csp.findById(link.csp);
-        console.log(csp)
-        // await enterprise.remove();
-        return ctx.ok({ message: "EnterpriseDeleted" })
+        if (csp.links.indexOf(link._id) !== -1) {
+            csp.links.splice(csp.links.indexOf(link._id), 1)
+            await csp.save();
+        }
+        await link.remove();
+        return ctx.ok({ message: "LinkDeleted" })
     } else {
         return ctx.badRequest({ error: "PermissionDenied" })
     }

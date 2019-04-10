@@ -13,6 +13,7 @@ let schema = new Schema({
     lastname: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true, select: false },
+    client_name: { type: String },
     credit_card: { type: Object },
     access: { type: String, required: true, enum: ['user', 'csp', 'admin'], default: 'user' },
     createdOn: { type: Date, default: Date.now },
