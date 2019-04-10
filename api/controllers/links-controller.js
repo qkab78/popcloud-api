@@ -38,25 +38,68 @@ exports.create = async ctx => {
   let csp = await Csp.findOne({ user: ctx.auth.id });
   if (!csp) return ctx.notFound({ error: "NotFound" });
   reqData.csp = csp._id.toString();
-  let link = new Link({
-    csp: csp._id,
-    name: reqData.name,
-  });
-  let validation = link.joiValidate(reqData, linksValidator.create);
-  if (validation.error) return ctx.badRequest({ error: validation.error });
-  const keyPair = await aws.createKey( ec2, { KeyName: csp.name });
-    console.log('data returned', keyPair)
-    if(keyPair){
-    // console.log(keyPair)
+  // const keyPair = await aws.createKey( ec2, { KeyName: csp.name });
+  ec2.createKeyPair({ KeyName: ctx.auth.email }, (err, data)=>{
+    if(err) console.error(err)
+    else {
     const instanceParams = {
       ImageId:config.AWS_AMI,
       InstanceType:'t2.micro',
-      KeyName:keyPair.KeyName,
+      KeyName:data.KeyName,
       MinCount:1,
       MaxCount:1
     }
-    // aws.createInstance(ec2, instanceParams, `tag_name_${csp.name}`, `tag_value_${reqData.tag_value}`);
-  }
+    // aws.createInstance(ec2, instanceParams, `tag_name_${ctx.auth.email}`, `tag_value_${reqData.tag_value}`);
+    const instancePromise = ec2.runInstances(instanceParams).promise();
+    instancePromise
+        .then(data => {
+            // console.log('instance', data);
+            const instanceId = data.Instances[0].InstanceId;
+            const keyName = data.Instances[0].KeyName;
+            const vpcId = data.Instances[0].VpcId;
+            // console.log("Created instance", instanceId);
+            const tagParams = {
+                Resources: [instanceId],
+                Tags: [
+                    {
+                        Key: `tag_name_${ctx.auth.email}`,
+                        Value: `tag_value_${reqData.tag_value}`
+                    }
+                ]
+            };
+            const tagPromise = ec2.createTags(tagParams).promise();
+            tagPromise
+                .then(data => {
+                    console.log("Instance tagged");
+                    let link = new Link({
+                      csp: csp._id,
+                      link_id: instanceId,
+                      link_keyName: keyName,
+                      link_vpcId: vpcId,
+                      name: reqData.name,
+                    });
+                    let validation = link.joiValidate(reqData, linksValidator.create);
+                    if (validation.error) return ctx.badRequest({ error: validation.error });
+                    console.log('link',link)
+                    link.save((err, data)=>{
+                      if(err) ctx.badRequest({ error: "ErrorInCreatingLink" })
+                      else{
+                        csp.links.push(link._id);
+                        csp.save((err, data)=>{
+                          if(err){
+                            ctx.badRequest({ error: "ErrorInCreatingLink" })
+                          }else{
+                            return ctx.ok(link);
+                          }
+                        });
+                      }
+                    });
+                })
+                .catch(err => console.error(err, err.stack));
+        })
+        .catch(err => console.error(err, err.stack));
+    }
+})
   // console.log('links', csp);
   // if (await link.save()) {
   //     csp.links.push(link._id);

@@ -55,17 +55,10 @@ exports.showInstance = (ec2, params) => {
 
 /* Gestion des clés */
 exports.createKey = async (ec2, params) => {
-    let result;
-    await ec2.createKeyPair(params, (err, data) => {
-        if (err) console.error(err);
-        else {
-            // console.log('Key Pair created');
-            // console.log(data);
-            result = data
-        }
+    return await ec2.createKeyPair(params, (err, data)=>{
+        if(err) console.error(err)
+        else console.log(data)
     });
-    console.log(result)
-    return result
 };
 
 exports.describeKey = ec2 => {
