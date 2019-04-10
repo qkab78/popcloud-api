@@ -15,10 +15,10 @@ exports.awsInit = (key, secret, region, version) => {
 
 /* Gestion des instances */
 exports.createInstance = (ec2, instanceParams, tagName, tagValue) => {
-    const instancePromise = ec2.runisPromise(instanceParams).promise();
+    const instancePromise = ec2.runInstances(instanceParams).promise();
     instancePromise
         .then(data => {
-            console.log(data);
+            console.log('instance', data);
             const instanceId = data.Instances[0].InstanceId;
             console.log("Created instance", instanceId);
             const tagParams = {
@@ -54,14 +54,18 @@ exports.showInstance = (ec2, params) => {
 };
 
 /* Gestion des clés */
-exports.createKey = (ec2, params) => {
-    ec2.createKeyPair(params, (err, data) => {
+exports.createKey = async (ec2, params) => {
+    let result;
+    await ec2.createKeyPair(params, (err, data) => {
         if (err) console.error(err);
         else {
-            console.log(data);
-            return data;
+            // console.log('Key Pair created');
+            // console.log(data);
+            result = data
         }
     });
+    console.log(result)
+    return result
 };
 
 exports.describeKey = ec2 => {
