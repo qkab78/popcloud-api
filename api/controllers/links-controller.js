@@ -1,14 +1,11 @@
+const util = require('util')
 const Csp = require("../models/csps-model");
 const Link = require("../models/links-model");
 const linksValidator = require("../../validation/links-validator");
 const config = require("../../config");
 const aws = require("../../services/aws-service")
-const ec2 = require("../../services/aws-service").awsInit(
-  config.AWS_KEY,
-  config.AWS_SECRET,
-  config.AWS_REGION,
-  config.AWS_API_VERSION
-);
+const { createKey, createInstance, createTags, showInstance, showInstances } = require("../../services/aws-service")
+
 exports.get = async ctx => {
   if (ctx.auth.access !== "csp")
     return ctx.send(401, { error: "PermissionDenied" });
@@ -24,8 +21,32 @@ exports.getLink = async ctx => {
   const { id } = ctx.params;
   if (ctx.auth.id) {
     let link = await Link.findById(id);
-    if (link) return ctx.ok(link);
-    else return ctx.notFound({ error: "NotFound" });
+    if (!link) return ctx.notFound({ error: "NotFound" });
+    // console.log(link)
+    const instance = await showInstances({ InstanceIds: [link.link_id], DryRun: false })
+    console.log(instance.Reservations[0].Instances[0])
+    // console.log(instance.InstanceMonitorings[0].Monitoring.State)
+    if (instance.Reservations[0].Instances[0].Tags.length > 0) {
+      instance.Reservations[0].Instances[0].Tags.map(tag => {
+        link.link_tags.push({ key: tag.Key, value: tag.Value })
+      });
+      await link.save()
+    }
+    if (instance.Reservations[0].Instances[0].SecurityGroups.length > 0) {
+      instance.Reservations[0].Instances[0].SecurityGroups.map(group => {
+        link.link_securityGroups.push({ id: group.GroupId, name: group.GroupName })
+      });
+      await link.save()
+    }
+    if (instance.Reservations[0].Instances[0].PublicDnsName !== '') {
+      link.link_publicDnsName = instance.Reservations[0].Instances[0].PublicDnsName
+      await link.save()
+    }
+    if (instance.Reservations[0].Instances[0].Monitoring.State === 'enabled') {
+      link.state = true;
+      await link.save();
+    }
+    return ctx.ok(link);
   } else {
     return ctx.send(401, { error: "PermissionDenied" });
   }
@@ -38,76 +59,48 @@ exports.create = async ctx => {
   let csp = await Csp.findOne({ user: ctx.auth.id });
   if (!csp) return ctx.notFound({ error: "NotFound" });
   reqData.csp = csp._id.toString();
-  // const keyPair = await aws.createKey( ec2, { KeyName: csp.name });
-  ec2.createKeyPair({ KeyName: ctx.auth.email }, (err, data)=>{
-    if(err) console.error(err)
-    else {
-    const instanceParams = {
-      ImageId:config.AWS_AMI,
-      InstanceType:'t2.micro',
-      KeyName:data.KeyName,
-      MinCount:1,
-      MaxCount:1
-    }
-    // aws.createInstance(ec2, instanceParams, `tag_name_${ctx.auth.email}`, `tag_value_${reqData.tag_value}`);
-    const instancePromise = ec2.runInstances(instanceParams).promise();
-    instancePromise
-        .then(data => {
-            // console.log('instance', data);
-            const instanceId = data.Instances[0].InstanceId;
-            const keyName = data.Instances[0].KeyName;
-            const vpcId = data.Instances[0].VpcId;
-            // console.log("Created instance", instanceId);
-            const tagParams = {
-                Resources: [instanceId],
-                Tags: [
-                    {
-                        Key: `tag_name_${ctx.auth.email}`,
-                        Value: `tag_value_${reqData.tag_value}`
-                    }
-                ]
-            };
-            const tagPromise = ec2.createTags(tagParams).promise();
-            tagPromise
-                .then(data => {
-                    console.log("Instance tagged");
-                    let link = new Link({
-                      csp: csp._id,
-                      link_id: instanceId,
-                      link_keyName: keyName,
-                      link_vpcId: vpcId,
-                      name: reqData.name,
-                    });
-                    let validation = link.joiValidate(reqData, linksValidator.create);
-                    if (validation.error) return ctx.badRequest({ error: validation.error });
-                    console.log('link',link)
-                    link.save((err, data)=>{
-                      if(err) ctx.badRequest({ error: "ErrorInCreatingLink" })
-                      else{
-                        csp.links.push(link._id);
-                        csp.save((err, data)=>{
-                          if(err){
-                            ctx.badRequest({ error: "ErrorInCreatingLink" })
-                          }else{
-                            return ctx.ok(link);
-                          }
-                        });
-                      }
-                    });
-                })
-                .catch(err => console.error(err, err.stack));
-        })
-        .catch(err => console.error(err, err.stack));
-    }
-})
-  // console.log('links', csp);
-  // if (await link.save()) {
-  //     csp.links.push(link._id);
-  //     await csp.save();
-  //     return ctx.ok(link);
-  // } else {
-  //     ctx.badRequest({ error: "ErrorInCreatingLink" })
-  // }
+  const keyPair = await createKey({ KeyName: ctx.auth.email });
+  console.log('Keypair:', keyPair)
+  const keyName = keyPair.KeyName;
+  const instanceParams = {
+    ImageId: config.AWS_AMI,
+    InstanceType: 't2.micro',
+    KeyName: keyName,
+    MinCount: 1,
+    MaxCount: 1
+  }
+  const instance = await createInstance(instanceParams);
+  // console.log('instance', instance);
+  const instanceId = instance.Instances[0].InstanceId;
+  const vpcId = instance.Instances[0].VpcId;
+  const tagParams = {
+    Resources: [instanceId],
+    Tags: [
+      {
+        Key: `tag_name_${ctx.auth.email}`,
+        Value: `tag_value_${reqData.tag_value}`
+      }
+    ]
+  };
+  const tag = createTags(tagParams);
+  const linkData = {
+    csp: reqData.csp,
+    link_id: instanceId,
+    link_keyName: keyName,
+    link_vpcId: vpcId,
+    name: instanceId,
+    state: reqData.state
+  };
+  let link = new Link(linkData);
+  let validation = link.joiValidate(linkData, linksValidator.create);
+  if (validation.error) return ctx.badRequest({ error: validation.error });
+  if (await link.save()) {
+    csp.links.push(link._id);
+    await csp.save();
+    return ctx.ok(link);
+  } else {
+    ctx.badRequest({ error: "ErrorInCreatingLink" })
+  }
 };
 
 exports.delete = async ctx => {
@@ -124,6 +117,7 @@ exports.delete = async ctx => {
       csp.links.splice(csp.links.indexOf(link._id), 1);
       await csp.save();
     }
+
     await link.remove();
     return ctx.ok({ message: "LinkDeleted" });
   } else {

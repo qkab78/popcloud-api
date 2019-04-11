@@ -11,6 +11,19 @@ let schema = new Schema({
     link_id: { type: String, required: true },
     link_keyName: { type: String, required: true },
     link_vpcId: { type: String, required: true },
+    link_publicDnsName: { type: String },
+    link_securityGroups: {
+        type: [{
+            id: { type: String },
+            name: { type: String },
+        }]
+    },
+    link_tags: {
+        type: [{
+            key: { type: String },
+            value: { type: String },
+        }]
+    },
     name: { type: String, required: true },
     state: { type: Boolean, required: true, default: false },
     createdOn: { type: Date, default: Date.now },
