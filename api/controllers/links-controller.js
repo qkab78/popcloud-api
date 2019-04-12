@@ -1,4 +1,5 @@
 const util = require('util')
+const User = require("../models/users-model");
 const Csp = require("../models/csps-model");
 const Link = require("../models/links-model");
 const linksValidator = require("../../validation/links-validator");
@@ -51,16 +52,21 @@ exports.getLink = async ctx => {
     return ctx.send(401, { error: "PermissionDenied" });
   }
 };
-
 exports.create = async ctx => {
-  if (ctx.auth.access !== "csp")
-    return ctx.send(401, { error: "PermissionDenied" });
-  const reqData = ctx.request.body;
-  let csp = await Csp.findOne({ user: ctx.auth.id });
-  if (!csp) return ctx.notFound({ error: "NotFound" });
-  reqData.csp = csp._id.toString();
+  let reqData = ctx.request.body;
+  let user;
+  if (ctx.auth.access === 'user') {
+    user = await User.findById(ctx.auth.id)
+  }
+  if (ctx.auth.access === 'csp') {
+    user = await Csp.findOne(ctx.auth.id);
+  }
+  console.log(user)
+  // let csp = await Csp.findOne({ user: ctx.auth.id });
+  if (!user) return ctx.notFound({ error: "NotFound" });
+  // reqData.csp = user._id.toString();
   const keyPair = await createKey({ KeyName: ctx.auth.email });
-  console.log('Keypair:', keyPair)
+  // console.log('Keypair:', keyPair)
   const keyName = keyPair.KeyName;
   const instanceParams = {
     ImageId: config.AWS_AMI,
@@ -84,19 +90,24 @@ exports.create = async ctx => {
   };
   const tag = createTags(tagParams);
   const linkData = {
-    csp: reqData.csp,
     link_id: instanceId,
     link_keyName: keyName,
     link_vpcId: vpcId,
     name: instanceId,
     state: reqData.state
   };
+  if (ctx.auth.access === 'csp') linkData.csp = user._id.toString()
+  if (ctx.auth.access === 'user') {
+    linkData.user = user._id.toString()
+    let csp = await Csp.findById(reqData.csp);
+    if (!csp) return ctx.badRequest({ error: "NotFound" })
+    console.log(csp)
+    linkData.csp = csp._id.toString()
+  }
   let link = new Link(linkData);
   let validation = link.joiValidate(linkData, linksValidator.create);
   if (validation.error) return ctx.badRequest({ error: validation.error });
   if (await link.save()) {
-    csp.links.push(link._id);
-    await csp.save();
     return ctx.ok(link);
   } else {
     ctx.badRequest({ error: "ErrorInCreatingLink" })

@@ -24,6 +24,7 @@ let schema = new Schema({
             value: { type: String },
         }]
     },
+    user: [{ type: Schema.Types.ObjectId, ref: "user" }],
     name: { type: String, required: true },
     state: { type: Boolean, required: true, default: false },
     createdOn: { type: Date, default: Date.now },
