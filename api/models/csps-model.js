@@ -7,10 +7,10 @@ const Joi = require('joi');
 const Schema = mongoose.Schema; //Create mongoose Schema
 
 let schema = new Schema({
-    user: { type: mongoose.Types.ObjectId, ref: "users" },
+    user: { type: mongoose.Types.ObjectId, ref: "user" },
     name: { type: String, required: true },
     description: { type: String, required: true },
-    links: [{ type: Schema.Types.ObjectId, ref: "links" }],
+    // links: [{ type: Schema.Types.ObjectId, ref: "links" }],
     createdOn: { type: Date, default: Date.now },
 })
 schema.methods.joiValidate = function (request, schemaType) {

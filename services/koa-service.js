@@ -14,7 +14,7 @@ exports.start = (app, router, port) => {
     } catch (err) {
       // will only respond with JSON
       console.error("error during request: ", err);
-      ctx.internalServerError();
+      ctx.badRequest();
     }
   });
 
