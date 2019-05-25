@@ -5,7 +5,7 @@ module.exports = {
         firstname: Joi.string().regex(/^[a-zA-Z][a-z]*$/).required(),
         lastname: Joi.string().regex(/^[a-zA-Z][a-z]*$/).required(),
         email: Joi.string().email().required(),
-        credit_card: Joi.object().required(),
+        // credit_card: Joi.object().required(),
         access: Joi.string().regex(/^[a-z]{3,10}/).required(),
         password: Joi.string().regex(/^[a-zA-Z0-9]{8,30}/).required(),
         confirmPassword: Joi.string().regex(/^[a-zA-Z0-9]{8,30}/).required()
